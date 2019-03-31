@@ -1039,6 +1039,14 @@ deps_/home/hyeyoom/Downloads/OperatingSystem-sysprog/PA1/dogdoor/dogdoor.o := \
     $(wildcard include/config/modules/use/elf/rela.h) \
   arch/x86/include/asm/orc_types.h \
   include/linux/proc_fs.h \
+  include/linux/slab.h \
+    $(wildcard include/config/debug/slab.h) \
+    $(wildcard include/config/failslab.h) \
+    $(wildcard include/config/have/hardened/usercopy/allocator.h) \
+    $(wildcard include/config/slab.h) \
+    $(wildcard include/config/slub.h) \
+  include/linux/kmemleak.h \
+  include/linux/kasan.h \
 
 /home/hyeyoom/Downloads/OperatingSystem-sysprog/PA1/dogdoor/dogdoor.o: $(deps_/home/hyeyoom/Downloads/OperatingSystem-sysprog/PA1/dogdoor/dogdoor.o)
 
